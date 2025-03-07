@@ -44,7 +44,7 @@ const GroupTable: React.FC = () => {
     if (groups.length > 0 && !selectedGroup) {
       setSelectedGroup(groups[0]);
     }
-  }, [groups]);
+  }, [groups, selectedGroup]);
 
   const handleRowClick = (group: Group) => {
     setSelectedGroup(group);

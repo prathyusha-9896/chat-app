@@ -1,17 +1,11 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useAuth } from './hooks/useAuth';
 import Sidebar from './components/Sidebar';
 import GroupTable from './components/GroupTable';
 import { GroupProvider } from './components/Context';
-import { useRouter } from 'next/navigation';
-import Signup from './components/SignUp';
-import Login from './components/Login';
+
 
 const Home = () => {
-  const { user } = useAuth();
-  const router = useRouter();
-  const [isSignup, setIsSignup] = useState(false);
+
 
   // Commenting out the redirect logic
   /*
