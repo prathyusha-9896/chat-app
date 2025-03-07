@@ -25,3 +25,22 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+@layer utilities {
+  .bg-chat-background {
+    background-image: url('/bg.webp'); /* Add a WhatsApp-like image */
+    background-size: 40%;
+    background-repeat: repeat;
+    background-position: center;
+    background-color: rgba(245, 248, 173, 0.7); /* Use rgba for transparent background color */
+    background-blend-mode: overlay;
+  }
+    /* Hide scrollbar for WebKit browsers */
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+  
+    /* Hide scrollbar for Firefox */
+    .hide-scrollbar {
+      scrollbar-width: none; /* Firefox */
+    }
+}

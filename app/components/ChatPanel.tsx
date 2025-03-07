@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-
+import { IoSend } from 'react-icons/io5';
 interface ChatMessage {
   id: number;
   sender_id: string;
@@ -15,16 +15,14 @@ interface ChatPanelProps {
   senderId: string;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ groupId }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState<string>('');
-  const [receiverId] = useState<string>('user2'); // ✅ Temporary receiver ID (Change based on UI)
+  const [receiverId] = useState<string>('user2'); // Temporary receiver ID (Change based on UI)
 
   useEffect(() => {
     async function fetchMessages() {
       if (!groupId) return;
-
-      console.log("Fetching messages for group:", groupId);
 
       const { data, error } = await supabase
         .from('messages')
@@ -35,15 +33,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId }) => {
       if (error) {
         console.error('Error fetching messages:', error.message);
       } else {
-        console.log("Fetched messages:", data);
         setMessages(data || []);
       }
     }
 
     fetchMessages();
-  }, [groupId]); // ✅ Re-fetch messages when group changes
+  }, [groupId]);
 
-  // ✅ Real-time subscription to new messages (only for this group)
   useEffect(() => {
     const messageSubscription = supabase
       .channel(`messages:group_id=eq.${groupId}`)
@@ -51,7 +47,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId }) => {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
-          console.log("New message received:", payload.new);
           setMessages((prevMessages) => [...prevMessages, payload.new as ChatMessage]);
         }
       )
@@ -62,63 +57,72 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId }) => {
     };
   }, [groupId]);
 
-  // ✅ Handle sending messages to another user
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    const senderId = 'user1'; // ✅ Static sender ID (Change based on UI)
-    
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .insert([
         {
           group_id: groupId,
-          sender_id: senderId, // ✅ Now includes sender
-          receiver_id: receiverId, // ✅ Includes receiver
+          sender_id: senderId,
+          receiver_id: receiverId,
           message_text: newMessage,
           sent_at: new Date().toISOString(),
         },
-      ]);
+      ])
+      .select();
 
     if (error) {
       console.error('Error sending message:', error.message);
     } else {
-      setNewMessage(''); // ✅ Clear input field after sending
+      setMessages((prevMessages) => [...prevMessages, data[0] as ChatMessage]);
+      setNewMessage('');
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col p-4">
+    <div className="flex-1 flex flex-col h-full bg-chat-background">
       {/* ✅ Chat Messages List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto hide-scrollbar px-6  space-y-2">
         {messages.length === 0 ? (
           <div className="text-center text-gray-500">No messages yet.</div>
         ) : (
-          messages.map((message, index) => (
-            <div key={message.id || index} className="mb-2"> {/* ✅ Fix: Unique key */}
-              <div className={`text-sm ${message.sender_id === 'user1' ? 'text-blue-600' : 'text-gray-600'}`}>
-                {message.sender_id === 'user1' ? 'You' : message.sender_id}
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex ${message.sender_id === senderId ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`rounded-lg p-3 max-w-xs shadow-md ${
+                  message.sender_id === senderId ? 'bg-green-500 text-right' : 'bg-white text-black'
+                }`}
+              >
+                <p className="text-sm">{message.message_text}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {new Date(message.sent_at).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
               </div>
-              <div className="text-md">{message.message_text}</div>
-              <div className="text-xs text-gray-400">{new Date(message.sent_at).toLocaleString()}</div>
             </div>
           ))
         )}
       </div>
 
-
       {/* ✅ Message Input Box */}
-      <div className="mt-4">
+      <div className="mt-4 p-2 bg-white ">
         <form onSubmit={handleSendMessage} className="flex">
           <input
             type="text"
-            placeholder="Type a message"
-            className="border rounded py-2 px-4 w-full"
+            placeholder="Type a message..."
+            className="flex-1 p-2 border-none rounded-lg outline-none bg-white"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
           />
-          <button type="submit" className="ml-2 bg-blue-500 text-white px-4 py-2 rounded">Send</button>
+          <button type="submit" className="ml-2  text-gray-800 px-4 py-2 rounded-lg"><IoSend size={20} fill='green' /></button>
         </form>
       </div>
     </div>
