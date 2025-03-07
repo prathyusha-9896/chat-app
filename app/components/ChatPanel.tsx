@@ -22,14 +22,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
 
   useEffect(() => {
     async function fetchMessages() {
-      if (!id) return; // ✅ Use `id` instead of `groupId`
-
+      if (!id) return;
+  
+      console.log('📢 Fetching messages for Group ID:', id);
+  
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .eq('group_id', id) // ✅ Filter by `id`
+        .eq('group_id', id) // ✅ Ensure correct column name
         .order('sent_at', { ascending: true });
-
+  
       if (error) {
         console.error('❌ Supabase Error:', error.message);
       } else {
@@ -37,9 +39,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
         setMessages(data || []);
       }
     }
-
+  
     fetchMessages();
   }, [id]); // ✅ Re-fetch messages when `id` changes
+  
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
