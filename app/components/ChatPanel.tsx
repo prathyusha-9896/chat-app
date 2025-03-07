@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { IoSend } from 'react-icons/io5';
+import { v4 as uuidv4 } from 'uuid'; // Import UUID library
 
 interface ChatMessage {
-  id: number;
+  id: string; // Ensure ID is always a string
   sender_id: string;
   receiver_id: string;
   message_text: string;
@@ -19,7 +20,6 @@ interface ChatPanelProps {
 const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState<string>('');
-  const [receiverId] = useState<string>('user2'); // Temporary receiver ID (Change based on UI)
 
   useEffect(() => {
     async function fetchMessages() {
@@ -34,21 +34,34 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
       if (error) {
         console.error('Error fetching messages:', error.message);
       } else {
-        setMessages(data || []);
+        // ✅ Ensure IDs are unique by using UUID if missing
+        setMessages(
+          data?.map((msg) => ({
+            ...msg,
+            id: msg.id?.toString() || uuidv4(),
+          })) || []
+        );
       }
     }
 
     fetchMessages();
-  }, [groupId]);
 
-  useEffect(() => {
     const messageSubscription = supabase
-      .channel(`messages:group_id=eq.${groupId}`)
+      .channel(`messages:group_id=${groupId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
-          setMessages((prevMessages) => [...prevMessages, payload.new as ChatMessage]);
+          setMessages((prevMessages) => [
+            ...prevMessages,
+            {
+              id: payload.new.id?.toString() || uuidv4(), // ✅ Ensure unique key
+              sender_id: payload.new.sender_id,
+              receiver_id: payload.new.receiver_id,
+              message_text: payload.new.message_text,
+              sent_at: payload.new.sent_at,
+            },
+          ]);
         }
       )
       .subscribe();
@@ -62,13 +75,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
+    const uniqueId = uuidv4(); // ✅ Generate unique ID for new messages
+
     const { data, error } = await supabase
       .from('messages')
       .insert([
         {
+          id: uniqueId, // ✅ Use UUID instead of relying on Supabase-generated ID
           group_id: groupId,
           sender_id: senderId,
-          receiver_id: receiverId,
           message_text: newMessage,
           sent_at: new Date().toISOString(),
         },
@@ -78,7 +93,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
     if (error) {
       console.error('Error sending message:', error.message);
     } else {
-      setMessages((prevMessages) => [...prevMessages, data[0] as ChatMessage]);
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+          id: data[0].id || uniqueId, // ✅ Use the generated or stored ID
+          sender_id: senderId,
+          receiver_id: '', // Receiver ID is not needed for groups
+          message_text: newMessage,
+          sent_at: new Date().toISOString(),
+        },
+      ]);
       setNewMessage('');
     }
   };
@@ -91,10 +115,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
           <div className="text-center text-gray-500">No messages yet.</div>
         ) : (
           messages.map((message) => (
-            <div
-              key={message.id} // Ensure each message has a unique key
-              className={`flex ${message.sender_id === senderId ? 'justify-end' : 'justify-start'}`}
-            >
+            <div key={message.id} className={`flex ${message.sender_id === senderId ? 'justify-end' : 'justify-start'}`}>
               <div
                 className={`rounded-lg p-3 max-w-xs shadow-md ${
                   message.sender_id === senderId ? 'bg-green-500 text-right' : 'bg-white text-black'
