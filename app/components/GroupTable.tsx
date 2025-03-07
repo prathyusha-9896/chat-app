@@ -1,48 +1,17 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import React from 'react';
 import Header from './Header';
 import ChatPanel from './ChatPanel';
-import { useAuth } from '../hooks/useAuth';
 import GroupHeader from './GroupHeader';
 import ChatPanelHeader from './ChatPanelHeader';
 import { FaUsers } from 'react-icons/fa';
-
-interface Group {
-  id: number;
-  group_name: string;
-  members: string[];
-  last_active: string;
-}
+import { useGroupContext } from './GroupContext';
+import type { Group } from './GroupContext'; // Import Group type
+import { useAuth } from '../hooks/useAuth'; // Import useAuth hook
 
 const GroupTable: React.FC = () => {
-  const { user } = useAuth();
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
-  const senderId = user?.id || '';
-
-  useEffect(() => {
-    async function fetchGroups() {
-      const { data, error } = await supabase
-        .from('groups')
-        .select('*')
-        .order('last_active', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching groups:', error.message);
-      } else {
-        setGroups(data || []);
-      }
-    }
-
-    fetchGroups();
-  }, []);
-
-  useEffect(() => {
-    if (groups.length > 0 && !selectedGroup) {
-      setSelectedGroup(groups[0]);
-    }
-  }, [groups]);
+  const { user } = useAuth(); // Get the authenticated user
+  const { groups, selectedGroup, setSelectedGroup } = useGroupContext();
 
   const handleRowClick = (group: Group) => {
     console.log('✅ Selected Group:', group);
@@ -82,8 +51,8 @@ const GroupTable: React.FC = () => {
 
         {/* ✅ Chat Panel */}
         <div className="flex-1 flex flex-col h-full overflow-hidden">
-          {selectedGroup && user ? (
-            <ChatPanel key={selectedGroup.id} id={selectedGroup.id} senderId={senderId} />
+          {selectedGroup ? (
+            <ChatPanel key={selectedGroup.id} id={selectedGroup.id} senderId={user?.id || ''} />
           ) : (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-gray-500">Select a group to start chatting</div>

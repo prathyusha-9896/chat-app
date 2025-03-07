@@ -1,61 +1,27 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { IoSend } from 'react-icons/io5';
-
-interface ChatMessage {
-  message_id: number;
-  sender_id: string;
-  receiver_id: string;
-  message_text: string;
-  sent_at: string;
-}
+import { useGroupContext } from './GroupContext';
 
 interface ChatPanelProps {
-  id: number; // ✅ Use `id` instead of `groupId`
+  id: number;
   senderId: string;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { messages, fetchMessages } = useGroupContext();
   const [newMessage, setNewMessage] = useState<string>('');
-
-  console.log('📢 Component Rendered. ID:', id);
-
-  useEffect(() => {
-    async function fetchMessages() {
-      if (!id) return;
-  
-      console.log('📢 Fetching messages for Group ID:', id);
-  
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('group_id', id) // ✅ Ensure correct column name
-        .order('sent_at', { ascending: true });
-  
-      if (error) {
-        console.error('❌ Supabase Error:', error.message);
-      } else {
-        console.log('✅ Messages Fetched:', data);
-        setMessages(data || []);
-      }
-    }
-  
-    fetchMessages();
-  }, [id]); // ✅ Re-fetch messages when `id` changes
-  
-  
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('messages')
       .insert([
         {
-          group_id: id, // ✅ Use `id` instead of `groupId`
+          group_id: id,
           sender_id: senderId,
           message_text: newMessage,
           sent_at: new Date().toISOString(),
@@ -66,16 +32,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
     if (error) {
       console.error('Error sending message:', error.message);
     } else {
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        {
-          message_id: data[0].message_id,
-          sender_id: senderId,
-          receiver_id: '',
-          message_text: newMessage,
-          sent_at: new Date().toISOString(),
-        },
-      ]);
+      fetchMessages(id);
       setNewMessage('');
     }
   };
