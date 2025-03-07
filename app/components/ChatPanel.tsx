@@ -2,10 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { IoSend } from 'react-icons/io5';
-import { v4 as uuidv4 } from 'uuid'; // Import UUID library
 
 interface ChatMessage {
-  id: string; // Ensure ID is always a string
+  message_id: number; // ✅ Ensure it's a number (INTEGER)
   sender_id: string;
   receiver_id: string;
   message_text: string;
@@ -34,13 +33,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
       if (error) {
         console.error('Error fetching messages:', error.message);
       } else {
-        // ✅ Ensure IDs are unique by using UUID if missing
-        setMessages(
-          data?.map((msg) => ({
-            ...msg,
-            id: msg.id?.toString() || uuidv4(),
-          })) || []
-        );
+        // ✅ Ensure `message_id` is correctly handled
+        setMessages(data || []);
       }
     }
 
@@ -55,7 +49,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
           setMessages((prevMessages) => [
             ...prevMessages,
             {
-              id: payload.new.id?.toString() || uuidv4(), // ✅ Ensure unique key
+              message_id: payload.new.message_id, // ✅ Use correct `message_id`
               sender_id: payload.new.sender_id,
               receiver_id: payload.new.receiver_id,
               message_text: payload.new.message_text,
@@ -75,13 +69,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    const uniqueId = uuidv4(); // ✅ Generate unique ID for new messages
-
     const { data, error } = await supabase
       .from('messages')
       .insert([
         {
-          id: uniqueId, // ✅ Use UUID instead of relying on Supabase-generated ID
           group_id: groupId,
           sender_id: senderId,
           message_text: newMessage,
@@ -96,9 +87,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
       setMessages((prevMessages) => [
         ...prevMessages,
         {
-          id: data[0].id || uniqueId, // ✅ Use the generated or stored ID
+          message_id: data[0].message_id, // ✅ Use correct `message_id`
           sender_id: senderId,
-          receiver_id: '', // Receiver ID is not needed for groups
+          receiver_id: '',
           message_text: newMessage,
           sent_at: new Date().toISOString(),
         },
@@ -115,7 +106,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
           <div className="text-center text-gray-500">No messages yet.</div>
         ) : (
           messages.map((message) => (
-            <div key={message.id} className={`flex ${message.sender_id === senderId ? 'justify-end' : 'justify-start'}`}>
+            <div key={message.message_id} className={`flex ${message.sender_id === senderId ? 'justify-end' : 'justify-start'}`}>
               <div
                 className={`rounded-lg p-3 max-w-xs shadow-md ${
                   message.sender_id === senderId ? 'bg-green-500 text-right' : 'bg-white text-black'
