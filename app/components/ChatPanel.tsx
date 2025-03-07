@@ -20,6 +20,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState<string>('');
 
+  console.log('📢 Component Rendered. ID:', id);
+
   useEffect(() => {
     async function fetchMessages() {
       if (!id) return;
@@ -42,6 +44,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
   
     fetchMessages();
   }, [id]); // ✅ Re-fetch messages when `id` changes
+  
   
 
   const handleSendMessage = async (e: React.FormEvent) => {
