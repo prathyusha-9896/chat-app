@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { IoSend } from 'react-icons/io5';
 
 interface ChatMessage {
-  message_id: number; // ✅ Ensure it's a number (INTEGER)
+  message_id: number;
   sender_id: string;
   receiver_id: string;
   message_text: string;
@@ -12,58 +12,34 @@ interface ChatMessage {
 }
 
 interface ChatPanelProps {
-  groupId: number;
+  id: number; // ✅ Use `id` instead of `groupId`
   senderId: string;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState<string>('');
 
   useEffect(() => {
     async function fetchMessages() {
-      if (!groupId) return;
+      if (!id) return; // ✅ Use `id` instead of `groupId`
 
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .eq('group_id', groupId)
+        .eq('group_id', id) // ✅ Filter by `id`
         .order('sent_at', { ascending: true });
 
       if (error) {
-        console.error('Error fetching messages:', error.message);
+        console.error('❌ Supabase Error:', error.message);
       } else {
-        // ✅ Ensure `message_id` is correctly handled
+        console.log('✅ Messages Fetched:', data);
         setMessages(data || []);
       }
     }
 
     fetchMessages();
-
-    const messageSubscription = supabase
-      .channel(`messages:group_id=${groupId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        (payload) => {
-          setMessages((prevMessages) => [
-            ...prevMessages,
-            {
-              message_id: payload.new.message_id, // ✅ Use correct `message_id`
-              sender_id: payload.new.sender_id,
-              receiver_id: payload.new.receiver_id,
-              message_text: payload.new.message_text,
-              sent_at: payload.new.sent_at,
-            },
-          ]);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(messageSubscription);
-    };
-  }, [groupId]);
+  }, [id]); // ✅ Re-fetch messages when `id` changes
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +49,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
       .from('messages')
       .insert([
         {
-          group_id: groupId,
+          group_id: id, // ✅ Use `id` instead of `groupId`
           sender_id: senderId,
           message_text: newMessage,
           sent_at: new Date().toISOString(),
@@ -87,7 +63,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ groupId, senderId }) => {
       setMessages((prevMessages) => [
         ...prevMessages,
         {
-          message_id: data[0].message_id, // ✅ Use correct `message_id`
+          message_id: data[0].message_id,
           sender_id: senderId,
           receiver_id: '',
           message_text: newMessage,

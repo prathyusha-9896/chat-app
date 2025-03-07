@@ -38,7 +38,6 @@ const GroupTable: React.FC = () => {
     fetchGroups();
   }, []);
 
-  // ✅ Fix: Update ChatPanel when group selection changes
   useEffect(() => {
     if (groups.length > 0 && !selectedGroup) {
       setSelectedGroup(groups[0]);
@@ -46,6 +45,7 @@ const GroupTable: React.FC = () => {
   }, [groups]);
 
   const handleRowClick = (group: Group) => {
+    console.log('✅ Selected Group:', group);
     setSelectedGroup(group);
   };
 
@@ -83,7 +83,7 @@ const GroupTable: React.FC = () => {
         {/* ✅ Chat Panel */}
         <div className="flex-1 flex flex-col h-full overflow-hidden">
           {selectedGroup && user ? (
-            <ChatPanel key={selectedGroup.id} groupId={selectedGroup.id} senderId={senderId} />
+            <ChatPanel key={selectedGroup.id} id={selectedGroup.id} senderId={senderId} />
           ) : (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-gray-500">Select a group to start chatting</div>
