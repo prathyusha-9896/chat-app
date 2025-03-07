@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { IoSend } from 'react-icons/io5';
 import { useGroupContext } from './GroupContext';
@@ -12,6 +12,25 @@ interface ChatPanelProps {
 const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
   const { messages, fetchMessages } = useGroupContext();
   const [newMessage, setNewMessage] = useState<string>('');
+
+  useEffect(() => {
+    fetchMessages(id);
+
+    const messageSubscription = supabase
+      .channel(`messages:group_id=eq.${id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        () => {
+          fetchMessages(id);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(messageSubscription);
+    };
+  }, [id, fetchMessages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +51,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
     if (error) {
       console.error('Error sending message:', error.message);
     } else {
-      fetchMessages(id);
       setNewMessage('');
     }
   };
@@ -45,7 +63,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
           <div className="text-center text-gray-500">No messages yet.</div>
         ) : (
           messages.map((message) => (
-            <div key={message.message_id} className={`flex ${message.sender_id === senderId ? 'justify-end' : 'justify-start'}`}>
+            <div
+              key={message.message_id}
+              className={`flex ${message.sender_id === senderId ? 'justify-end' : 'justify-start'}`}
+            >
               <div
                 className={`rounded-lg p-3 max-w-xs shadow-md ${
                   message.sender_id === senderId ? 'bg-green-500 text-right' : 'bg-white text-black'
