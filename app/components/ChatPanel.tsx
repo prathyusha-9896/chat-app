@@ -3,15 +3,17 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { IoSend } from 'react-icons/io5';
 import { useGroupContext } from './GroupContext';
+import { v4 as uuidv4 } from 'uuid'; // Import UUID generator
 
 interface ChatPanelProps {
   id: number;
-  senderId: string;
+  senderId?: string; // Make senderId optional
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
   const { messages, fetchMessages } = useGroupContext();
   const [newMessage, setNewMessage] = useState<string>('');
+  const [dummyUserId] = useState(senderId || `guest_${uuidv4().slice(0, 8)}`); // Generate a unique guest ID
 
   useEffect(() => {
     fetchMessages(id);
@@ -41,7 +43,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
       .insert([
         {
           group_id: id,
-          sender_id: senderId,
+          sender_id: dummyUserId, // ✅ Use dummy user ID
           message_text: newMessage,
           sent_at: new Date().toISOString(),
         },
@@ -65,11 +67,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
           messages.map((message) => (
             <div
               key={message.message_id}
-              className={`flex ${message.sender_id === senderId ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${message.sender_id === dummyUserId ? 'justify-end' : 'justify-start'}`}
             >
               <div
                 className={`rounded-lg p-3 max-w-xs shadow-md ${
-                  message.sender_id === senderId ? 'bg-green-500 text-right' : 'bg-white text-black'
+                  message.sender_id === dummyUserId ? 'bg-green-500 text-right' : 'bg-white text-black'
                 }`}
               >
                 <p className="text-sm">{message.message_text}</p>
