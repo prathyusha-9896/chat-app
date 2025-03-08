@@ -1,65 +1,69 @@
 'use client';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import useHasMounted from '../hooks/useHasMounted'; // ✅ Import mounting check
 import Header from './Header';
 import ChatPanel from './ChatPanel';
 import GroupHeader from './GroupHeader';
 import ChatPanelHeader from './ChatPanelHeader';
 import { FaUsers } from 'react-icons/fa';
 import { useGroupContext } from './GroupContext';
-import type { Group } from './GroupContext'; // Import Group type
-import { useAuth } from '../hooks/useAuth'; // Import useAuth hook
+import { useAuth } from '../hooks/useAuth';
 
 const GroupTable: React.FC = () => {
-  const { user } = useAuth(); // Get the authenticated user
+  const hasMounted = useHasMounted(); // ✅ Prevent hydration mismatch
+  const { user } = useAuth();
   const { groups, selectedGroup, setSelectedGroup } = useGroupContext();
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleRowClick = (group: Group) => {
-    console.log('✅ Selected Group:', group);
-    setSelectedGroup(group);
-  };
+  useEffect(() => {
+    if (groups.length > 0) setIsLoading(false);
+  }, [groups]);
+
+  // ✅ Prevents mismatched SSR/CSR content
+  if (!hasMounted) {
+    return <p className="text-center text-gray-500 mt-4">Loading...</p>;
+  }
 
   return (
     <>
       <Header />
-      <div className='flex'>
+      <section className="flex">
         <GroupHeader />
-        <div className='w-[72%]'>
-          {selectedGroup && <ChatPanelHeader group={selectedGroup} />}
-        </div>
-      </div>
-      <div className="flex h-screen overflow-hidden">
-        {/* ✅ Sidebar with Groups */}
-        <div className="w-[28%] overflow-y-auto h-full hide-scrollbar">
-          {groups.map((group) => (
-            <div
-              key={group.id}
-              className={`p-4 flex items-center cursor-pointer hover:bg-gray-100 ${
-                selectedGroup?.id === group.id ? 'bg-gray-50' : ''
-              }`}
-              onClick={() => handleRowClick(group)}
-            >
-              {/* ✅ Group Icons */}
-              <FaUsers size={40} className="text-white bg-gray-200 p-2 rounded-full" />
+        <div className="w-[72%]">{selectedGroup && <ChatPanelHeader group={selectedGroup} />}</div>
+      </section>
 
-              {/* ✅ Group Info */}
-              <div className="ml-3">
-                <div className="font-bold">{group.group_name}</div>
-              </div>
-            </div>
-          ))}
-        </div>
+      <section className="flex h-screen overflow-hidden">
+        <aside className="w-[28%] overflow-y-auto h-full hide-scrollbar">
+          {isLoading ? (
+            <p className="text-center text-gray-500 mt-4">Loading groups...</p>
+          ) : (
+            groups.map((group) => (
+              <article
+                key={group.id}
+                className={`p-4 flex items-center cursor-pointer hover:bg-gray-100 ${
+                  selectedGroup?.id === group.id ? 'bg-gray-50' : ''
+                }`}
+                onClick={() => setSelectedGroup(group)}
+              >
+                <FaUsers size={40} className="text-white bg-gray-200 p-2 rounded-full" />
+                <div className="ml-3">
+                  <h3 className="font-bold">{group.group_name}</h3>
+                </div>
+              </article>
+            ))
+          )}
+        </aside>
 
-        {/* ✅ Chat Panel */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <section className="flex-1 flex flex-col h-full overflow-hidden">
           {selectedGroup ? (
             <ChatPanel key={selectedGroup.id} id={selectedGroup.id} senderId={user?.id || ''} />
           ) : (
             <div className="flex-1 flex items-center justify-center">
-              <div className="text-gray-500">Select a group to start chatting</div>
+              <p className="text-gray-500">Select a group to start chatting</p>
             </div>
           )}
-        </div>
-      </div>
+        </section>
+      </section>
     </>
   );
 };

@@ -12,7 +12,6 @@ export interface Group {
 interface ChatMessage {
   message_id: number;
   sender_id: string;
-  receiver_id: string;
   message_text: string;
   sent_at: string;
 }
@@ -22,7 +21,7 @@ interface GroupContextType {
   selectedGroup: Group | null;
   messages: ChatMessage[];
   setSelectedGroup: (group: Group) => void;
-  fetchMessages: (groupId: number) => void;
+  fetchMessages: (groupId: number) => Promise<void>;
 }
 
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
@@ -33,40 +32,32 @@ export const GroupProvider = ({ children }: { children: ReactNode }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
-    async function fetchGroups() {
+    const fetchGroups = async () => {
       const { data, error } = await supabase
         .from('groups')
         .select('*')
         .order('last_active', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching groups:', error.message);
-      } else {
-        setGroups(data || []);
-      }
-    }
+      if (!error && data) setGroups(data);
+      else console.error('Error fetching groups:', error?.message);
+    };
 
     fetchGroups();
   }, []);
 
-  const fetchMessages = async (groupId: number) => {
+  const fetchMessages = async (groupId: number): Promise<void> => {
     const { data, error } = await supabase
       .from('messages')
       .select('*')
       .eq('group_id', groupId)
       .order('sent_at', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching messages:', error.message);
-    } else {
-      setMessages(data || []);
-    }
+    if (!error && data) setMessages(data);
+    else console.error('Error fetching messages:', error?.message);
   };
 
   useEffect(() => {
-    if (selectedGroup) {
-      fetchMessages(selectedGroup.id);
-    }
+    if (selectedGroup) fetchMessages(selectedGroup.id);
   }, [selectedGroup]);
 
   return (
@@ -78,8 +69,6 @@ export const GroupProvider = ({ children }: { children: ReactNode }) => {
 
 export const useGroupContext = () => {
   const context = useContext(GroupContext);
-  if (context === undefined) {
-    throw new Error('useGroupContext must be used within a GroupProvider');
-  }
+  if (!context) throw new Error('useGroupContext must be used within a GroupProvider');
   return context;
 };
