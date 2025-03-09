@@ -4,9 +4,6 @@ import { supabase } from '../lib/supabase';
 import { IoSend, IoMic } from 'react-icons/io5';
 import { GrAttachment } from 'react-icons/gr';
 import { VscSmiley } from 'react-icons/vsc';
-import { LuClock } from 'react-icons/lu';
-import { PiClockClockwiseBold } from 'react-icons/pi';
-import { RiFileList2Fill } from 'react-icons/ri';
 import EmojiPicker from 'emoji-picker-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useGroupContext } from './GroupContext';
@@ -21,29 +18,56 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
   const [newMessage, setNewMessage] = useState('');
   const [dummyUserId] = useState(senderId || `guest_${uuidv4().slice(0, 8)}`);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [, setUploading] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [oldestMessageTimestamp, setOldestMessageTimestamp] = useState<string | null>(null);
+  const [atBottom, setAtBottom] = useState(true);
 
   useEffect(() => {
     fetchMessages(id);
-
-    const messageSubscription = supabase
-      .channel(`messages:group_id=eq.${id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        () => fetchMessages(id)
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(messageSubscription);
-    };
   }, [id, fetchMessages]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length > 0) {
+      setOldestMessageTimestamp(messages[0].sent_at);
+    }
   }, [messages]);
+
+  // ✅ Detect if user is at bottom before new messages arrive
+  const checkIfAtBottom = () => {
+    if (!chatContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    setAtBottom(scrollHeight - scrollTop <= clientHeight + 50);
+  };
+
+  // ✅ Load older messages when scrolling up
+  const handleScroll = async () => {
+    if (!chatContainerRef.current || loadingOlderMessages || !oldestMessageTimestamp) return;
+
+    if (chatContainerRef.current.scrollTop === 0) {
+      setLoadingOlderMessages(true);
+      const prevScrollHeight = chatContainerRef.current.scrollHeight;
+      await fetchOlderMessages(id, oldestMessageTimestamp);
+      setTimeout(() => {
+        chatContainerRef.current!.scrollTop = chatContainerRef.current!.scrollHeight - prevScrollHeight;
+      }, 100);
+      setLoadingOlderMessages(false);
+    }
+  };
+
+  const fetchOlderMessages = async (groupId: number, beforeTimestamp: string) => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('group_id', groupId)
+      .lt('sent_at', beforeTimestamp)
+      .order('sent_at', { ascending: true })
+      .limit(10);
+
+    if (!error && data.length > 0) {
+      setOldestMessageTimestamp(data[0].sent_at);
+    }
+  };
 
   const handleEmojiClick = (emojiObject: { emoji: string }) => {
     setNewMessage((prev) => prev + emojiObject.emoji);
@@ -63,44 +87,33 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
       },
     ]);
 
-    if (!error) setNewMessage('');
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files || event.target.files.length === 0) return;
-    const file = event.target.files[0];
-
-    setUploading(true);
-    const filePath = `uploads/${uuidv4()}-${file.name}`;
-
-    const { error } = await supabase.storage.from('chat-uploads').upload(filePath, file);
-    if (error) {
-      console.error('Error uploading file:', error.message);
-      setUploading(false);
-      return;
+    if (!error) {
+      setNewMessage('');
+      if (atBottom) {
+        setTimeout(() => {
+          chatContainerRef.current?.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: 'smooth' });
+        }, 100);
+      }
     }
-
-    const { data: { publicUrl } } = supabase.storage.from('chat-uploads').getPublicUrl(filePath);
-    await supabase.from('messages').insert([
-      {
-        group_id: id,
-        sender_id: dummyUserId,
-        message_text: publicUrl,
-        sent_at: new Date().toISOString(),
-      },
-    ]);
-
-    setUploading(false);
   };
 
   return (
     <section className="flex-1 flex flex-col h-full bg-chat-background relative">
-      {/* ✅ Chat Messages List */}
-      <article className="flex-1 overflow-y-auto px-6 space-y-2 hide-scrollbar">
+      {/* ✅ Chat Messages List (Newest at bottom) */}
+      <article
+        ref={chatContainerRef}
+        className="flex-1 overflow-y-auto px-6 space-y-2 hide-scrollbar flex flex-col-reverse"
+        onScroll={() => {
+          checkIfAtBottom();
+          handleScroll();
+        }}
+      >
+        {loadingOlderMessages && <p className="text-center text-gray-500">Loading older messages...</p>}
+
         {messages.length === 0 ? (
           <p className="text-center text-gray-500">No messages yet.</p>
         ) : (
-          messages.map((message) => (
+          [...messages].reverse().map((message) => (
             <div key={message.message_id} className={`flex ${message.sender_id === dummyUserId ? 'justify-end' : 'justify-start'}`}>
               <div className={`rounded-lg p-3 max-w-xs shadow-md ${message.sender_id === dummyUserId ? 'bg-green-500 text-right' : 'bg-white text-black'}`}>
                 {message.message_text.startsWith('http') ? (
@@ -120,8 +133,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
             </div>
           ))
         )}
-        {/* ✅ Auto-scroll anchor */}
-        <div ref={messagesEndRef}></div>
       </article>
 
       {/* ✅ Message Input Box */}
@@ -131,9 +142,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
             <EmojiPicker onEmojiClick={handleEmojiClick} />
           </div>
         )}
-
-        {/* ✅ Hidden File Input */}
-        <input type="file" accept="image/*,video/*,application/pdf" className="hidden" id="fileUpload" onChange={handleFileUpload} />
 
         {/* ✅ Message Input Form */}
         <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
@@ -151,20 +159,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ id, senderId }) => {
 
         {/* ✅ Icons Below Input */}
         <div className="flex items-center justify-start space-x-3 text-gray-500 mt-2">
-          <button onClick={() => document.getElementById('fileUpload')?.click()} className="cursor-pointer hover:text-black text-lg">
+          <button className="cursor-pointer hover:text-black text-lg">
             <GrAttachment />
           </button>
           <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="cursor-pointer hover:text-black text-lg">
             <VscSmiley />
-          </button>
-          <button className="cursor-pointer hover:text-black text-lg">
-            <LuClock />
-          </button>
-          <button className="cursor-pointer hover:text-black text-lg">
-            <PiClockClockwiseBold />
-          </button>
-          <button className="cursor-pointer hover:text-black text-lg">
-            <RiFileList2Fill />
           </button>
           <button className="cursor-pointer hover:text-black text-lg">
             <IoMic />
