@@ -38,61 +38,54 @@ export const GroupProvider = ({ children }: { children: ReactNode }) => {
     const fetchGroups = async () => {
       const { data: groupsData, error: groupsError } = await supabase
         .from('groups')
-        .select('id, group_name, last_active, member_phone_numbers, project')
-        .order('last_active', { ascending: false });
-
+        .select('id, group_name, last_active, project, member_phone_numbers')
+        .order('last_active', { ascending: false })
+        .limit(50);  // 🚀 Limits data to 50 groups for better performance
+    
       if (groupsError || !groupsData) {
         console.error('Error fetching groups:', groupsError?.message);
         return;
       }
-
+    
       const allPhoneNumbers = [...new Set(groupsData.flatMap(group => group.member_phone_numbers || []))]
         .map(phone => phone.trim());
-
-      if (allPhoneNumbers.length === 0) {
-        setGroups(groupsData.map(group => ({ ...group, avatars: [], last_message: "No messages yet" })));
-        return;
-      }
-
+    
       const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('phone_number, avatar_url')
         .in('phone_number', allPhoneNumbers);
-
+    
       if (usersError || !usersData) {
         console.error("Error fetching users:", usersError?.message);
         return;
       }
-
+    
       const userMap = new Map(usersData.map(user => [user.phone_number, user.avatar_url || "/profile.jpg"]));
-
-      // **🔹 Fetch latest message for each group**
+    
+      // ✅ Fetch latest messages efficiently using indexed search
+      const { data: latestMessagesData, error: latestMessagesError } = await supabase
+        .from('messages')
+        .select('group_id, message_text')
+        .order('sent_at', { ascending: false })
+        .limit(1);  // Only fetch the latest message per group
+    
       const latestMessages: { [groupId: number]: string } = {};
-      for (const group of groupsData) {
-        const { data: messageData, error: messageError } = await supabase
-          .from('messages')
-          .select('message_text')
-          .eq('group_id', group.id)
-          .order('sent_at', { ascending: false })
-          .limit(1);
-
-        if (!messageError && messageData.length > 0) {
-          latestMessages[group.id] = messageData[0].message_text;
-        } else {
-          latestMessages[group.id] = "No messages yet";
-        }
+      if (!latestMessagesError && latestMessagesData) {
+        latestMessagesData.forEach(msg => {
+          latestMessages[msg.group_id] = msg.message_text;
+        });
       }
-
+    
       const formattedGroups: Group[] = groupsData.map(group => ({
         ...group,
         avatars: (group.member_phone_numbers || []).map((phone: string) => userMap.get(phone) || "/profile.jpg"),
-        last_message: latestMessages[group.id],
+        last_message: latestMessages[group.id] || "No messages yet",
         project: group.project || "General"
       }));
-
+    
       setGroups(formattedGroups);
     };
-
+    
     fetchGroups();
   }, []);
 
